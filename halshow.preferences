@@ -1,0 +1,42 @@
+# Halshow settings
+# This file is generated automatically.
+wm geometry . 926x833+979+46
+placeFrames 0.3
+set ::ratio 0.3
+set ::old_w_leftf 160
+set ::watchlist {
+    pin+hm2_7i97.0.pwmgen.05.value
+    pin+hm2_7i97.0.pwmgen.05.enable
+    sig+sp.rpm-val
+    pin+mux.sign.in0
+    pin+mux.sign.in1
+    pin+mux.sign.sel
+    pin+mux.sign.out
+    pin+mult.sign.in0
+    pin+mult.sign.in1
+    pin+mult.sign.out
+    pin+spindle.0.speed-out
+    pin+hm2_7i97.0.encoder.05.velocity-rpm
+    pin+mux.gearbox.in0
+    pin+mux.gearbox.in1
+    pin+mux.gearbox.sel
+    pin+mux.gearbox.out
+    pin+mux.value-switch.in0
+    pin+mux.value-switch.in1
+    pin+mux.value-switch.sel
+    pin+mux.value-switch.out
+    pin+scale.gearbox.gain
+    pin+scale.gearbox.in
+    pin+scale.gearbox.out
+    pin+scale.gearbox.offset
+    param+hm2_7i97.0.pwmgen.05.scale
+    param+hm2_7i97.0.pwmgen.05.offset-mode
+    pin+spindle.0.at-speed
+}
+set ::workmode watchhal
+set ::watchInterval 100
+set ::col1_width 100
+set ::ffmts 
+set ::ifmts 
+set ::alwaysOnTop 0
+set ::autoSaveWatchlist 1

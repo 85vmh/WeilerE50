@@ -1,0 +1,1 @@
+pin+hm2_7i97.0.pwmgen.05.value pin+hm2_7i97.0.pwmgen.05.enable pin+hm2_7i97.0.7i70.0.0.input-08 pin+hm2_7i97.0.7i70.0.0.input-09 sig+sp.rpm-val pin+TeachInLathe.app-status.spindle-started sig+in.z_ready pin+mux.sign.in0 pin+mux.sign.in1 pin+mux.sign.sel pin+mux.sign.out pin+mult.sign.in0 pin+mult.sign.in1 pin+mult.sign.out pin+spindle.0.speed-out

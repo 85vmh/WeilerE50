@@ -1,0 +1,55 @@
+#******************************
+#All digital inputs/outputs
+#******************************
+
+#connector 1
+net in.home-x               <=  hm2_7i97.0.7i70.0.0.input-00-not
+net in.home-z               <=  hm2_7i97.0.7i70.0.0.input-01-not
+net in.hard-x-both          <=  hm2_7i97.0.7i70.0.0.input-02-not
+net in.hard-z-plus          <=  hm2_7i97.0.7i70.0.0.input-03-not
+
+net in.drives-enabled      <=  hm2_7i97.0.7i70.0.0.input-04-not
+# net in.x_ready             <=  hm2_7i97.0.7i70.0.0.input-04-not
+net in.z_ready             <=  hm2_7i97.0.7i70.0.0.input-05-not
+net in.ready_for_op        <=  hm2_7i97.0.7i70.0.0.input-06-not
+net in.sp_overload         <=  hm2_7i97.0.7i70.0.0.input-07-not
+
+#connector 2
+net in.spindle-rev          <=  hm2_7i97.0.7i70.0.0.input-08
+net in.spindle-fwd          <=  hm2_7i97.0.7i70.0.0.input-09
+
+net fake.sp1   hm2_7i97.0.7i70.0.0.input-08-not => and.sp-neutral.in0
+net fake.sp2   hm2_7i97.0.7i70.0.0.input-09-not => and.sp-neutral.in1
+net in.spindle-neutral  <= and.sp-neutral.out
+
+
+# aici nush ce am
+net in.spindle-gear1     <=  hm2_7i97.0.7i70.0.0.input-11
+net in.cycle-start          <=  hm2_7i97.0.7i70.0.0.input-12
+net in.cycle-abort          <=  hm2_7i97.0.7i70.0.0.input-13-not
+net in.single-block         <=  hm2_7i97.0.7i70.0.0.input-14
+
+net in.estop-free         <=  hm2_7i97.0.7i70.0.0.input-15
+
+#connector 3
+net in.jog-increment-a          <=  hm2_7i97.0.7i70.0.0.input-16
+net in.jog-increment-b          <=  hm2_7i97.0.7i70.0.0.input-17
+net in.feed-override-a      <=  hm2_7i97.0.7i70.0.0.input-18
+net in.feed-override-b      <=  hm2_7i97.0.7i70.0.0.input-19
+net in.feed-override-c      <=  hm2_7i97.0.7i70.0.0.input-20
+net in.feed-override-d      <=  hm2_7i97.0.7i70.0.0.input-21
+net in.powered-on           <=  hm2_7i97.0.7i70.0.0.input-22
+net in.joystick-x-plus      <=  hm2_7i97.0.7i70.0.0.input-23
+#connector 4
+net in.joystick-x-minus     <=  hm2_7i97.0.7i70.0.0.input-24
+net in.joystick-z-plus      <=  hm2_7i97.0.7i70.0.0.input-25
+net in.joystick-z-minus     <=  hm2_7i97.0.7i70.0.0.input-26
+net in.joystick-rapid       <=  hm2_7i97.0.7i70.0.0.input-27
+net in.spindle-override-a   <=  hm2_7i97.0.7i70.0.0.input-28
+net in.spindle-override-b   <=  hm2_7i97.0.7i70.0.0.input-29
+net in.spindle-override-c   <=  hm2_7i97.0.7i70.0.0.input-30
+net in.spindle-override-d   <=  hm2_7i97.0.7i70.0.0.input-31  
+
+
+net out.nc-ready           <=  hm2_7i97.0.ssr.00.out-00
+

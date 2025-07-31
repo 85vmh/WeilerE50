@@ -1,0 +1,88 @@
+#*******************
+#  SPINDLE
+#*******************
+loadrt scale    names=gearbox-scale
+loadrt mux2     names=gearbox-ratio
+
+addf gearbox-ratio      servo-thread
+addf gearbox-scale      servo-thread
+
+setp   pid.s.Pgain     [SPINDLE_0]P
+setp   pid.s.Igain     [SPINDLE_0]I
+setp   pid.s.Dgain     [SPINDLE_0]D
+setp   pid.s.bias      [SPINDLE_0]BIAS
+setp   pid.s.FF0       [SPINDLE_0]FF0
+setp   pid.s.FF1       [SPINDLE_0]FF1
+setp   pid.s.FF2       [SPINDLE_0]FF2
+setp   pid.s.deadband  [SPINDLE_0]DEADBAND
+
+setp   pid.s.error-previous-target true
+
+# ---Encoder feedback signals/setup---
+setp    hm2_7i97.0.encoder.05.counter-mode 0
+setp    hm2_7i97.0.encoder.05.filter 1
+setp    hm2_7i97.0.encoder.05.index-invert 0
+setp    hm2_7i97.0.encoder.05.index-mask 0
+setp    hm2_7i97.0.encoder.05.index-mask-invert 0
+setp    hm2_7i97.0.encoder.05.scale     [SPINDLE_0]ENCODER_SCALE
+
+setp    hm2_7i97.0.pwmgen.05.output-type  1 #PWM pin0
+setp    hm2_7i97.0.pwmgen.05.offset-mode  1 # offset modfe so 50% = 0
+setp    hm2_7i97.0.pwmgen.05.scale      [SPINDLE_0]OUTPUT_SCALE
+
+setp gearbox-ratio.in0 0.1333
+setp gearbox-ratio.in1 0.0333
+
+# ---Setup spindle at speed signals---
+setp spindle.0.at-speed true  #this should be calculated
+
+net sp.index-enable <=> pid.s.index-enable
+net sp.index-enable <=> hm2_7i97.0.encoder.05.index-enable
+net sp.index-enable <=> spindle.0.index-enable
+
+net sp.enable   => spindle.0.on   pid.s.enable   hm2_7i97.0.pwmgen.05.enable
+
+
+net spindle-vel-cmd-rpm                 => pid.s.command
+net spindle-vel-fb-rpm                  => pid.s.feedback
+
+
+net spindle-pid-out     pid.s.output    => gearbox-scale.in
+net gear-ratio          gearbox-ratio.out       => gearbox-scale.gain  
+net in.spindle-low-gear  =>  gearbox-ratio.sel
+
+#net gearbox-ratio.out        pid.s.maxoutput
+
+net spindle-output        <=  gearbox-scale.out
+
+net spindle-output      => hm2_7i97.0.pwmgen.05.value
+#net spindle-enable      => hm2_7i97.0.pwmgen.05.enable
+
+net spindle-revs             <=   hm2_7i97.0.encoder.05.position
+net spindle-vel-fb-rps       <=   hm2_7i97.0.encoder.05.velocity
+net spindle-vel-fb-rpm       <=   hm2_7i97.0.encoder.05.velocity-rpm
+
+
+# ---setup spindle control signals---
+
+net spindle-vel-cmd-rps        <=  spindle.0.speed-out-rps
+net spindle-vel-cmd-rps-abs    <=  spindle.0.speed-out-rps-abs
+net spindle-vel-cmd-rpm        <=  spindle.0.speed-out
+net spindle-vel-cmd-rpm-abs    <=  spindle.0.speed-out-abs
+#net spindle-enable             <=  spindle.0.on
+net spindle-cw                 <=  spindle.0.forward
+net spindle-ccw                <=  spindle.0.reverse
+net spindle-brake              <=  spindle.0.brake
+net spindle-revs               =>  spindle.0.revs
+net spindle-vel-fb-rps         =>  spindle.0.speed-in
+
+
+
+#Spindle rev-fwd-stop
+net in.spindle-rev          classicladder.0.in-08
+net in.spindle-fwd          classicladder.0.in-09
+net out.spindle-on-pulse    classicladder.0.out-06
+net out.spindle-off-pulse   classicladder.0.out-07  =>  halui.spindle.0.stop
+net out.spindle-rev         classicladder.0.out-08  =>  halui.spindle.0.reverse
+net out.spindle-fwd         classicladder.0.out-09  =>  halui.spindle.0.forward
+
