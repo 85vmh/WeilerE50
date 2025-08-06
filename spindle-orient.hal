@@ -108,7 +108,7 @@ net and.should-orient   =>  mux.off-delay.sel #this will toggle between the off 
 net and.should-orient   =>  oneshot.0.in #this will trigger the index-enable
 
 # Velocity PID is enabled only when not orient
-net sp.enable           or.sp-enable.out    =>  hm2_7i97.0.pwmgen.05.enable
+net sp.enable           or.sp-enable.out    =>  hm2_7i97.0.pwmgen.05.enable    => hm2_7i97.0.ssr.00.out-01
 
 #---------------------
 net sp.vel-fb-rpm   <=  hm2_7i97.0.encoder.05.velocity-rpm  # required for UI
