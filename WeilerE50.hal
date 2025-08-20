@@ -12,19 +12,18 @@ loadrt  pid     names=pid.x,pid.z,pid.s,pid.o
 loadrt mux16    names=mux.spindle-override,mux.feed-override
 
 loadrt classicladder_rt numPhysInputs=30 numPhysOutputs=30 numTimersIec=20 #numS32in=5 numS32out=5 numFloatIn=50 numFloatOut=50 numBits=50 numWords=50
-#loadusr classicladder WeilerE30.clp
-loadusr classicladder --nogui WeilerE30.clp
-# loadusr classicladder --nogui WeilerE50.clp
+loadusr classicladder --nogui WeilerESeries.clp
+loadusr -W hal_manualtoolchange
 
 
 addf hm2_7i97.0.read          servo-thread
+addf classicladder.0.refresh  servo-thread
 addf motion-command-handler   servo-thread
 addf motion-controller        servo-thread
 addf pid.x.do-pid-calcs       servo-thread
 addf pid.z.do-pid-calcs       servo-thread
 addf pid.s.do-pid-calcs       servo-thread
 addf hm2_7i97.0.write         servo-thread
-addf classicladder.0.refresh  servo-thread
 
 setp hm2_7i97.0.pwmgen.pwm_frequency    48000
 setp hm2_7i97.0.watchdog.timeout_ns     5000000
