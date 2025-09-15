@@ -1,27 +1,17 @@
 # Halshow settings
 # This file is generated automatically.
-wm geometry . 794x833+1084+87
-placeFrames 0.29411764705882354
-set ::ratio 0.29411764705882354
+wm geometry . 966x833+868+60
+placeFrames 0.32375
+set ::ratio 0.32375
 set ::old_w_leftf 160
 set ::watchlist {
-    pin+TeachInLathe.spindle.actual-rpm
-    pin+TeachInLathe.spindle.cover-opened
-    pin+TeachInLathe.spindle.is-first-gear
-    pin+TeachInLathe.spindle.switch-rev-in
-    pin+TeachInLathe.spindle.switch-fwd-in
-    pin+TeachInLathe.app-status.spindle-started
-    pin+TeachInLathe.app-status.ready-to-run-program
-    pin+TeachInLathe.app-status.power-feeding
-    pin+hm2_7i97.0.pwmgen.05.enable
-    pin+hm2_7i97.0.pwmgen.05.value
-    pin+spindle.0.inhibit
+    pin+TeachInLathe.joystick.z-plus
+    pin+TeachInLathe.joystick.z-minus
+    pin+TeachInLathe.joystick.x-plus
+    pin+TeachInLathe.joystick.x-minus
     pin+halui.mode.auto
     pin+halui.mode.is-auto
-    pin+halui.mode.is-manual
-    pin+halui.mode.is-teleop
-    pin+halui.mode.is-mdi
-    pin+halui.mode.mdi
+    param+debounce.0.delay
 }
 set ::workmode watchhal
 set ::watchInterval 100

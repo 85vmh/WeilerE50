@@ -24,7 +24,7 @@ net in.cycle-start  =>  and.program-run.in0     and.program-step.in0
 net in.cycle-abort  =>  and.program-pause.in0   and.program-resume.in0  classicladder.0.in-19  
 
 net green-btn.idle-on   halui.program.is-idle       => and.program-run.in1  classicladder.0.in-13
-net green-btn.run-sig   and.program-run.out         => halui.program.run    halui.mode.auto # check if we want auto now  
+net green-btn.run-sig   and.program-run.out         => halui.program.run    # halui.mode.auto # check if we want auto now  
 net green-btn.step-sig  and.program-step.out        => halui.program.step
 
 net red-btn.pause-on    halui.program.is-paused     => and.program-pause.in1    and.program-step.in1    nistToggle.pause-resume.is-on  
