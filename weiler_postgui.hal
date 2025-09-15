@@ -1,8 +1,7 @@
 # These are the the connections made after the UI was launched and custom pins were created
+loadrt  manual_weiler
+addf    manual-weiler.0     servo-thread
 
-loadrt  debounce    cfg=5
-addf    debounce.0  servo-thread
-setp    debounce.0.delay    20
 
 net in.spindle-rev          TeachInLathe.spindle.switch-rev-in
 net in.spindle-fwd          TeachInLathe.spindle.switch-fwd-in
@@ -10,68 +9,52 @@ net in.spindle-gear1        TeachInLathe.spindle.is-first-gear
 net in.chuck-cover          TeachInLathe.spindle.cover-opened
 net sp.vel-fb-rpm           TeachInLathe.spindle.actual-rpm
 
-net in.joystick-x-plus      debounce.0.0.in
-net filtered.x-plus         debounce.0.0.out    =>  TeachInLathe.joystick.x-plus   
-net in.joystick-x-minus     debounce.0.1.in
-net filtered.x-minus        debounce.0.1.out    =>  TeachInLathe.joystick.x-minus   
-net in.joystick-z-plus      debounce.0.2.in
-net filtered.z-plus         debounce.0.2.out    =>  TeachInLathe.joystick.z-plus    
-net in.joystick-z-minus     debounce.0.3.in
-net filtered.z-minus        debounce.0.3.out    =>  TeachInLathe.joystick.z-minus 
-
-# no need to filter this one
+net in.joystick-x-plus      TeachInLathe.joystick.x-plus   
+net in.joystick-x-minus     TeachInLathe.joystick.x-minus   
+net in.joystick-z-plus      TeachInLathe.joystick.z-plus    
+net in.joystick-z-minus     TeachInLathe.joystick.z-minus 
 net in.joystick-rapid       TeachInLathe.joystick.rapid
-
-# allow mpg jog only if joystick is neutral
-net in.joystick-neutral         debounce.0.4.in     
-net filtered.joystick-neutral   debounce.0.4.out    not.joystick-neutral.in    and.mpg-allowed.in0
-net in.joystick-not-neutral     not.joystick-neutral.out
-
-# decide when we consider we're power feeding 
-net app.power-feeding           <=  TeachInLathe.app-status.power-feeding
-net app.power-feeding           =>  and.power-feeding.in0   # if the app says feeding
-net in.joystick-not-neutral     =>  and.power-feeding.in1   # and if the joystick is non neutral
-net pwr-feed.is-power-feeding   <=  and.power-feeding.out
-
-net MDI-mode                    =>  classicladder.0.in-10
-net app.power-feeding           =>  classicladder.0.in-11
-net filtered.joystick-neutral   =>  classicladder.0.in-12
-
-# tell classicladder tha the mode is manual
-net nc-mode.is-manual       <=  halui.mode.is-manual
-net nc-mode.is-manual       =>  classicladder.0.in-09
-
-loadrt comp count=1
-addf comp.0 servo-thread
-
-setp comp.0.in0         0.01    #set the threshold to compare with 0.01mm/sec
-net curr-velocity   <=  motion.current-vel
-net curr-velocity   =>  comp.0.in1
-net is-moving       <= comp.0.out
-net is-moving       => classicladder.0.in-14
+net app.feed-per-rev        TeachInLathe.joystick.feed-per-rev
+net app.is-angle-feed       TeachInLathe.joystick.is-angle-feed
+net app.jog-speed           TeachInLathe.joystick.jog-speed
 
 
-# allow mpg jog only after a delay after the feed has stopped
-net pwr-feed.allows-mpg     <=  classicladder.0.out-05
-net pwr-feed.allows-mpg     =>  and.mpg-allowed.in1
+# hardcoded parameters
+setp                        manual-weiler.0.allowMpgDelay       0.5 # 0.5 second
+setp                        manual-weiler.0.startFeedDelay      1   # 1 second
+net app.jog-speed           manual-weiler.0.jogRapidSpeed
 
+# input pins
+net sp.is-running       =>  manual-weiler.0.spindleOn
+net sp.vel-fb-rpm       =>  manual-weiler.0.spindleRpm
+net app.feed-per-rev    =>  manual-weiler.0.feedPerRev
+net mw.override-value   =>  halui.feed-override.value   =>  manual-weiler.0.feedOverride
 
-net pwr-feed.feed-hold      classicladder.0.out-10  => motion.feed-inhibit
-net pwr-feed.set-manual     classicladder.0.out-11  => halui.mode.manual
+net in.joystick-neutral     manual-weiler.0.joystickNeutral
+net in.joystick-x-plus      manual-weiler.0.joystickXPlus   
+net in.joystick-x-minus     manual-weiler.0.joystickXMinus  
+net in.joystick-z-plus      manual-weiler.0.joystickZPlus    
+net in.joystick-z-minus     manual-weiler.0.joystickZMinus
+net in.joystick-rapid       manual-weiler.0.joystickRapid
+net app.is-angle-feed       manual-weiler.0.angleFeed
 
+# outputs
+net mw.out-jog-speed    =>  manual-weiler.0.jogSpeed    =>  halui.axis.jog-speed
+net jog-x-neg           <=  manual-weiler.0.jogXMinus
+net jog-x-pos           <=  manual-weiler.0.jogXPlus
+net jog-z-neg           <=  manual-weiler.0.jogZMinus
+net jog-z-pos           <=  manual-weiler.0.jogZPlus
 
-# mpg 
 net mpg.readable-increment  TeachInLathe.handwheels.jog-increment
 # Enable MPG's if they are enabled in the UI
 net mpg.app-x-enable        TeachInLathe.handwheels.x-enable    =>  and.x-mpg-enable.in0
 net mpg.app-z-enable        TeachInLathe.handwheels.z-enable    =>  and.z-mpg-enable.in0
 
 # 
-net mpg.jog-allowed         <=  and.mpg-allowed.out
+net mpg.jog-allowed         <=  manual-weiler.0.allowMpg
 net mpg.jog-allowed         =>  and.x-mpg-enable.in1
 net mpg.jog-allowed         =>  and.z-mpg-enable.in1
 net mpg.jog-allowed         =>  TeachInLathe.handwheels.allowed
-
 
 net mpg.x-enable.out        and.x-mpg-enable.out    =>  axis.x.jog-enable   
 net mpg.z-enable.out        and.z-mpg-enable.out    =>  axis.z.jog-enable   
@@ -80,8 +63,9 @@ net mpg.z-enable.out        and.z-mpg-enable.out    =>  axis.z.jog-enable
 net in.cycle-start          TeachInLathe.button.cycle-start
 net in.cycle-abort          TeachInLathe.button.cycle-stop
 
-
 net xmin TeachInLathe.axis-limits.x-min   => ini.x.min_limit
 net xmax TeachInLathe.axis-limits.x-max   => ini.x.max_limit
 net zmin TeachInLathe.axis-limits.z-min   => ini.z.min_limit
 net zmax TeachInLathe.axis-limits.z-max   => ini.z.max_limit
+
+# net out.lube-pump       classicladder.0.out-08
