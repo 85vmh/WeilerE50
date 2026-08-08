@@ -17,6 +17,7 @@ net in.joystick-rapid       TeachInLathe.joystick.rapid
 net app.feed-per-rev        TeachInLathe.joystick.feed-per-rev
 net app.is-angle-feed       TeachInLathe.joystick.is-angle-feed
 net app.jog-speed           TeachInLathe.joystick.jog-speed
+net app.program-loaded      TeachInLathe.app-status.program-loaded
 
 
 # hardcoded parameters
@@ -26,6 +27,7 @@ net app.jog-speed           manual-weiler.0.jogRapidSpeed
 
 # input pins
 net sp.is-running       =>  manual-weiler.0.spindleOn
+net sp.angle            =>  TeachInLathe.spindle.orientation
 net sp.vel-fb-rpm       =>  manual-weiler.0.spindleRpm
 net app.feed-per-rev    =>  manual-weiler.0.feedPerRev
 net mw.override-value   =>  halui.feed-override.value   =>  manual-weiler.0.feedOverride
@@ -44,6 +46,7 @@ net jog-x-neg           <=  manual-weiler.0.jogXMinus
 net jog-x-pos           <=  manual-weiler.0.jogXPlus
 net jog-z-neg           <=  manual-weiler.0.jogZMinus
 net jog-z-pos           <=  manual-weiler.0.jogZPlus
+net mw.feeding          =>  manual-weiler.0.feeding     =>  TeachInLathe.joystick.is-feeding     
 
 net mpg.readable-increment  TeachInLathe.handwheels.jog-increment
 # Enable MPG's if they are enabled in the UI
@@ -68,4 +71,8 @@ net xmax TeachInLathe.axis-limits.x-max   => ini.x.max_limit
 net zmin TeachInLathe.axis-limits.z-min   => ini.z.min_limit
 net zmax TeachInLathe.axis-limits.z-max   => ini.z.max_limit
 
-# net out.lube-pump       classicladder.0.out-08
+net sp.reset-required       TeachInLathe.spindle.reset-required
+net js.reset-required       manual-weiler.0.resetRequired   => TeachInLathe.joystick.reset-required
+
+net app.program-loaded      program-state.0.programLoaded
+net out.cycle-start-led     =>  TeachInLathe.app-status.cycle-start-led

@@ -1,37 +1,22 @@
 #**************************
 #Panel buttons
 #**************************
+loadrt weiler_startup
+addf weiler-startup.0 servo-thread
 
-loadrt toggle       names=toggle.pause-resume
-loadrt toggle2nist  names=nistToggle.pause-resume
-
-
-addf toggle.pause-resume      servo-thread
-addf nistToggle.pause-resume  servo-thread
-
+setp weiler-startup.0.powered-on-debounce    30
+setp weiler-startup.0.output-pulse-duration  0.10
 
 #Power & Estop
-net in.estop-free       => classicladder.0.in-00 iocontrol.0.emc-enable-in
-net in.enable-drives    => classicladder.0.in-01
-net out.machine-on      classicladder.0.out-01  =>  halui.machine.on
-net out.machine-off     classicladder.0.out-02  =>  halui.machine.off
-net out-program-stop    classicladder.0.out-08  =>  halui.program.stop
+net in.estop-free       =>  iocontrol.0.emc-enable-in
 
+net machine-is-on       =>  weiler-startup.0.machine-on
+net in.enable-drives    =>  weiler-startup.0.powered-on
+net in.joystick-neutral =>  weiler-startup.0.joystick-neutral
+net in.spindle-neutral  =>  weiler-startup.0.spindle-neutral
 
-#CycleStart button - handles run/step
-#CycleStop button - handles pause/resume
-net in.cycle-start  =>  and.program-run.in0     and.program-step.in0
-net in.cycle-abort  =>  and.program-pause.in0   and.program-resume.in0  classicladder.0.in-19  
+# Allow the machine to be powered on when the conditions are met (joystick neutral & spindle neutral)
+net out.nc-ready        <=  weiler-startup.0.nc-ready
 
-net green-btn.idle-on   halui.program.is-idle       => and.program-run.in1  classicladder.0.in-20
-net green-btn.run-sig   and.program-run.out         => halui.program.run    halui.mode.auto # check if we want auto now  
-net green-btn.step-sig  and.program-step.out        => halui.program.step
-
-net red-btn.pause-on    halui.program.is-paused     => and.program-pause.in1    and.program-step.in1    nistToggle.pause-resume.is-on  
-net red-btn.run-on      halui.program.is-running    => and.program-resume.in1
-net red-btn.pause-sig   and.program-pause.out       => or.pause-resume.in0
-net red-btn.resume-sig  and.program-resume.out      => or.pause-resume.in1 
-net red-btn.toggle-ok   or.pause-resume.out         => toggle.pause-resume.in 
-net red-btn.toggle-sig  toggle.pause-resume.out     => nistToggle.pause-resume.in 
-net red-btn.toggle-on   nistToggle.pause-resume.on  => halui.program.pause
-net red-btn.toggle-off  nistToggle.pause-resume.off => halui.program.resume
+net out.machine-on      weiler-startup.0.turn-on   =>  halui.machine.on
+net out.machine-off     weiler-startup.0.turn-off  =>  halui.machine.off

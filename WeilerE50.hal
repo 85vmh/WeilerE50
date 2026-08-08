@@ -11,13 +11,10 @@ loadrt hm2_eth board_ip="10.10.10.10" config="num_encoders=6 num_pwmgens=6 num_s
 loadrt  pid     names=pid.x,pid.z,pid.s,pid.o
 loadrt mux16    names=mux.spindle-override,mux.feed-override
 
-loadrt classicladder_rt numPhysInputs=30 numPhysOutputs=30 numTimersIec=20 #numS32in=5 numS32out=5 numFloatIn=50 numFloatOut=50 numBits=50 numWords=50
-loadusr classicladder --nogui WeilerESeries.clp
 loadusr -W hal_manualtoolchange
 
 
 addf hm2_7i97.0.read          servo-thread
-addf classicladder.0.refresh  servo-thread
 addf motion-command-handler   servo-thread
 addf motion-controller        servo-thread
 addf pid.x.do-pid-calcs       servo-thread

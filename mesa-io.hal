@@ -45,3 +45,4 @@ net in.cycle-abort          <=  hm2_7i97.0.7i70.0.0.input-29-not
 #------Mesa 7i97 Analog Servo Interface--------
 #TB5 Socket 3
 net out.nc-ready            <=  hm2_7i97.0.ssr.00.out-00
+net out.cycle-start-led     <=  hm2_7i97.0.ssr.00.out-01
