@@ -26,7 +26,7 @@ setp                        weiler-manual-mode.0.startFeedDelay      1   # 1 sec
 net app.jog-speed           weiler-manual-mode.0.jogRapidSpeed
 
 # input pins
-net sp.is-running       =>  weiler-manual-mode.0.spindleOn
+net sp.is-running       =>  weiler-manual-mode.0.spindleOn  => TeachInLathe.spindle.is-on
 net sp.angle            =>  TeachInLathe.spindle.orientation
 net sp.vel-fb-rpm       =>  weiler-manual-mode.0.spindleRpm
 net app.feed-per-rev    =>  weiler-manual-mode.0.feedPerRev
