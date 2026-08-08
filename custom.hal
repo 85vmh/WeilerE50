@@ -41,7 +41,7 @@ net out.sInhibit    or.sp-inhibit.out               =>  spindle.0.inhibit   => n
 
 # enable the spindle when enable is requested and inhibit not active (chuck cover opened)
 net sp.no-inhibit   not.sp-inhibit.out      =>  and.sp-enable.in1
-net sp.enable       and.sp-enable.out       =>  hm2_7i95.0.pwmgen.00.enable => hm2_[MESA](BOARD).0.ssr.00.out-05
+# net sp.enable       and.sp-enable.out       =>  hm2_7i95.0.pwmgen.00.enable => hm2_[MESA](BOARD).0.ssr.00.out-05
 
 # In order to properly handle the M1 state in the program, we need this pins
 net opt-stop    halui.program.optional-stop.is-on   =>  motion.digital-in-00  

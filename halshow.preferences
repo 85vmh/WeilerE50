@@ -21,7 +21,7 @@ set ::watchlist {
     pin+halui.mode.is-teleop
     pin+halui.mode.is-mdi
     pin+halui.mode.mdi
-    pin+manual-weiler.0.jogRapidSpeed
+    pin+weiler-manual-mode.0.jogRapidSpeed
     pin+TeachInLathe.axis-limits.x-max
     pin+TeachInLathe.axis-limits.z-max
     pin+TeachInLathe.axis-limits.z-min
