@@ -12,7 +12,6 @@ set ::watchlist {
     pin+TeachInLathe.spindle.switch-fwd-in
     pin+TeachInLathe.app-status.spindle-started
     pin+TeachInLathe.app-status.ready-to-run-program
-    pin+TeachInLathe.app-status.power-feeding
     pin+hm2_7i97.0.pwmgen.05.enable
     pin+hm2_7i97.0.pwmgen.05.value
     pin+spindle.0.inhibit
@@ -22,6 +21,10 @@ set ::watchlist {
     pin+halui.mode.is-teleop
     pin+halui.mode.is-mdi
     pin+halui.mode.mdi
+    pin+manual-weiler.0.jogRapidSpeed
+    pin+TeachInLathe.axis-limits.x-max
+    pin+TeachInLathe.axis-limits.z-max
+    pin+TeachInLathe.axis-limits.z-min
 }
 set ::workmode watchhal
 set ::watchInterval 100
