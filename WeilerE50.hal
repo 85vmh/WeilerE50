@@ -40,6 +40,7 @@ setp   pid.x.bias      [JOINT_0]BIAS
 setp   pid.x.FF0       [JOINT_0]FF0
 setp   pid.x.FF1       [JOINT_0]FF1
 setp   pid.x.FF2       [JOINT_0]FF2
+setp   pid.x.FF3       [JOINT_0]FF3
 setp   pid.x.deadband  [JOINT_0]DEADBAND
 setp   pid.x.maxoutput [JOINT_0]MAX_OUTPUT
 setp   pid.x.error-previous-target true
@@ -91,6 +92,7 @@ setp   pid.z.bias      [JOINT_1]BIAS
 setp   pid.z.FF0       [JOINT_1]FF0
 setp   pid.z.FF1       [JOINT_1]FF1
 setp   pid.z.FF2       [JOINT_1]FF2
+setp   pid.z.FF3       [JOINT_1]FF3
 setp   pid.z.deadband  [JOINT_1]DEADBAND
 setp   pid.z.maxoutput [JOINT_1]MAX_OUTPUT
 setp   pid.z.error-previous-target true
