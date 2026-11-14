@@ -11,7 +11,6 @@ loadrt hm2_eth board_ip="10.10.10.10" config="num_encoders=6 num_pwmgens=6 num_s
 loadrt  pid     names=pid.x,pid.z,pid.s,pid.o
 loadrt mux16    names=mux.spindle-override,mux.feed-override
 
-loadusr -W hal_manualtoolchange
 
 
 addf hm2_7i97.0.read          servo-thread
@@ -159,11 +158,5 @@ net machine-is-on           halui.machine.is-on
 net in-position               <=  motion.in-position
 net machine-is-enabled        <=  motion.motion-enabled
 
-#  ---manual tool change signals---
-
-net tool:change     iocontrol.0.tool-change         =>  hal_manualtoolchange.change
-net tool:changed    hal_manualtoolchange.changed    =>  iocontrol.0.tool-changed
-net tool:number     iocontrol.0.tool-prep-number    =>  hal_manualtoolchange.number
-#  ---ignore tool prepare requests---
-net tool:prepare    iocontrol.0.tool-prepare        =>  iocontrol.0.tool-prepared
+# tool change signals are in weiler_postgui.hal (TeachInLathe handles the tool change)
 

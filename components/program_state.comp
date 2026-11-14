@@ -16,6 +16,12 @@ pin in  s32   motionType;
 pin in  bit   chuckCoverOpened;     /* 1 = cover open */
 pin in  bit   spindleAtSpeed;       /* 1 = spindle at commanded speed */
 
+/* Tool change handshake */
+pin in  bit   toolChange;           /* <- iocontrol.0.tool-change */
+
+/* Machine power: falling edge while a program is active = abort (e-stop, machine off) */
+pin in  bit   machineOn;            /* <- halui.machine.is-on */
+
 /* Pulse duration (seconds; 0.1 = 100ms) for all command pulses */
 pin in  float outputPulseDuration = 0.10;
 
@@ -25,7 +31,9 @@ pin out bit   pauseProgram;         /* -> halui.program.pause  (pulse) */
 pin out bit   resumeProgram;        /* -> halui.program.resume (pulse) */
 pin out bit   stepProgram;          /* -> halui.program.step   (pulse) */
 pin out bit   stopProgram;          /* -> halui.program.stop   (pulse) */
-pin out bit   finishedProgram;      /* -> halui.mode.manual    (pulse) */
+pin out bit   programCompleted;     /* program ended normally (M2/M30)      (level, for the UI) */
+pin out bit   programAborted;       /* program stopped by red button/e-stop (pulse) */
+pin out bit   toolChanged;          /* -> iocontrol.0.tool-changed (pulse) */
 
 /* Feed-hold + Spindle inhibit (levels) */
 pin out bit   feedInhibit;          /* -> motion.feed-inhibit (0=run, 1=hold) */
@@ -42,6 +50,7 @@ pin out bit   statusStepPaused;             /* true in ST_PAUSED_SINGLE_BLOCK if
 pin out bit   statusChuckCoverOpened;       /* ON in ST_CHUCK_COVER_OPENED */
 pin out bit   statusSpindleResumeRequired;  /* ON in ST_SPINDLE_RESUME_REQUIRED */
 pin out bit   statusFeedResumeRequired;     /* ON in ST_FEED_RESUME_REQUIRED */
+pin out bit   statusToolChangeRequired;     /* ON while waiting for the tool change confirmation */
 
 /* ===== LED (green CycleStart) ===== */
 pin out bit   cycleStartLedStatus;          /* RUNNING=ON; PAUSED=blink 500/500; IDLE&loaded=double-blink; other per overlay */
@@ -49,7 +58,8 @@ pin out bit   cycleStartLedStatus;          /* RUNNING=ON; PAUSED=blink 500/500;
 /* ===== Debug ===== */
 param rw s32  state_dbg;                    /* base state: 0=NOT_LOADED,1=IDLE,2=RUNNING,3=PAUSED_NO_SB,4=PAUSED_SB,5=UNKNOWN */
 param rw bit  postStartPausePending_dbg;    /* armed pause after Start in SB */
-param rw s32  last_action_dbg;              /* 1=start,2=pause,3=resume,4=step,5=stop,7=hold_on,8=hold_off */
+param rw s32  last_action_dbg;              /* 1=start,2=pause,3=resume,4=step,5=stop,6=completed,7=hold_on,8=hold_off,9=tool_changed,10=aborted */
+param rw bit  toolChangeAckSent_dbg;        /* tool change already confirmed for the current request */
 param rw s32  overlay_dbg;                  /* 0=NONE, 1=COVER_OPEN, 2=SPINDLE_RESUME_REQ, 3=FEED_RESUME_REQ */
 
 /* ===== Function ===== */
@@ -86,7 +96,8 @@ enum {
     LED_IDLE_LOADED_DBLINK    = 1,  /* 100ms ON,100ms OFF,100ms ON,700ms OFF */
     LED_PAUSED_BLINK          = 2,  /* 500ms ON / 500ms OFF */
     LED_RUNNING_ON            = 3,
-    LED_COVER_FAST            = 4   /* 100ms ON / 100ms OFF (repeat) */
+    LED_COVER_FAST            = 4,  /* 100ms ON / 100ms OFF (repeat) */
+    LED_TOOLCHANGE_TRIPLE     = 5   /* 3x (100ms ON,100ms OFF) then 500ms OFF */
 };
 
 /* ===== Edge memories & latches ===== */
@@ -95,11 +106,16 @@ static bool prevCycleAbortLevel        = false;
 static bool prevSingleBlockLevel       = false;
 static bool prevChuckCoverLevel        = false;
 static bool prevProgramIdleLevel       = false;
+static bool prevToolChangeLevel        = false;
+static bool prevMachineOnLevel         = false;
+static bool prevProgramLoadedLevel     = false;
 
 static bool postStartPausePending      = false;   /* after Start with SB=ON, pause when RUNNING appears */
 static bool feedHoldLatched            = false;   /* mirror of the feedInhibit we drive */
-static bool pendingFinishedAfterStop   = false;   /* after Stop: when we see IDLE, pulse finishedProgram once */
+static bool pendingAbortedAfterStop    = false;   /* after Stop: when we see IDLE, pulse programAborted once */
+static bool programWasActive           = false;   /* program ran (or was paused) since it last went IDLE */
 static bool firstStepAfterEnterSB      = false;   /* first GREEN in ST_PAUSED_SINGLE_BLOCK must STEP */
+static bool toolChangeAckSent          = false;   /* already pulsed toolChanged for the current request */
 
 static int  prevState                  = ST_UNKNOWN;
 static bool firstCall                  = true;
@@ -108,6 +124,8 @@ static bool firstCall                  = true;
 static int  overlayState               = OV_NONE;
 static int  prevStateBeforeCover       = ST_UNKNOWN;
 static bool spindleUninhibitCommanded  = false;   /* set when we drop spindleInhibit in OV_SPINDLE_RESUME_REQ */
+static bool spindleWasRunningAtCover   = false;   /* spindle actually turning when the interlock engaged */
+static bool coverInterlockEngaged      = false;   /* feed/spindle held because of the cover */
 
 /* ===== Pulse timers (seconds) ===== */
 static double t_start       = 0.0;
@@ -115,7 +133,8 @@ static double t_pause       = 0.0;
 static double t_resume      = 0.0;
 static double t_step        = 0.0;
 static double t_stop        = 0.0;
-static double t_finished    = 0.0;
+static double t_aborted     = 0.0;
+static double t_toolChanged = 0.0;
 
 /* ===== LED state ===== */
 static int    led_mode       = LED_OFF;
@@ -151,7 +170,7 @@ FUNCTION(_)
 
     state_dbg = state;
 
-    /* Arm „first step” when entering ST_PAUSED_SINGLE_BLOCK */
+    /* Arm "first step" when entering ST_PAUSED_SINGLE_BLOCK */
     if ((state == ST_PAUSED_SINGLE_BLOCK) && (prevState != ST_PAUSED_SINGLE_BLOCK)) {
         firstStepAfterEnterSB = true;
     }
@@ -165,13 +184,19 @@ FUNCTION(_)
     bool singleBlockLevel   = singleBlock;
     bool chuckCoverLevel    = chuckCoverOpened;
     bool programIdleLevel   = programIdle;
+    bool toolChangeLevel    = toolChange;
+    bool machineOnLevel     = machineOn;
+    bool programLoadedLevel = programLoaded;
 
     /* On first call, sync prev states to avoid false edges at startup */
     if (firstCall) {
         prevChuckCoverLevel = chuckCoverLevel;
+        prevToolChangeLevel = toolChangeLevel;
+        prevMachineOnLevel  = machineOnLevel;
+        prevProgramLoadedLevel = programLoadedLevel;
         firstCall = false;
     }
-    
+
     bool programIdleRise    = ( programIdleLevel && !prevProgramIdleLevel );
     bool cycleStartEdge     = ( cycleStartLevel  && !prevCycleStartLevel );
     bool cycleAbortEdge     = ( cycleAbortLevel  && !prevCycleAbortLevel );
@@ -179,15 +204,39 @@ FUNCTION(_)
     bool singleBlockFall    = ( !singleBlockLevel && prevSingleBlockLevel );
     bool chuckCoverRise     = ( chuckCoverLevel && !prevChuckCoverLevel );
     bool chuckCoverFall     = ( !chuckCoverLevel && prevChuckCoverLevel );
+    bool toolChangeRise     = ( toolChangeLevel && !prevToolChangeLevel );
+    bool toolChangeFall     = ( !toolChangeLevel && prevToolChangeLevel );
+    bool machineOnFall      = ( !machineOnLevel && prevMachineOnLevel );
+    bool programLoadedRise  = ( programLoadedLevel && !prevProgramLoadedLevel );
 
-    /* ===== Overlay: enter/exit logic for chuck cover ===== */
-    if (chuckCoverRise) {
+    /* ===== Tool change guard =====
+       While the interpreter waits for a tool change, GREEN confirms the change and
+       nothing else. Both edges re-arm the latch, so it can never stay stuck. */
+    bool toolChangePending  = ( programLoaded && toolChangeLevel );
+
+    if (toolChangeRise || toolChangeFall) {
+        toolChangeAckSent = false;
+    }
+
+    /* ===== Overlay: enter/exit logic for chuck cover =====
+       The cover is ignored while a tool change is pending: the machine is stopped
+       waiting for the operator, who legitimately needs the cover open to swap the
+       tool. If it is still open when the change is confirmed, the falling edge of
+       toolChange engages the overlay exactly like an opening would. */
+    bool coverEngage = ( chuckCoverRise && !toolChangePending ) ||
+                       ( toolChangeFall && chuckCoverLevel );
+
+    if (coverEngage) {
         /* remember base state at opening */
         prevStateBeforeCover = state;
 
-        if (state == ST_RUNNING) {
-            /* Engage safety ONLY if we were running */
+        /* A paused program counts as engaged too: the spindle keeps turning while
+           paused, so closing the cover must not restart anything by itself. */
+        if (state == ST_RUNNING ||
+            state == ST_PAUSED_NO_SINGLE_BLOCK ||
+            state == ST_PAUSED_SINGLE_BLOCK) {
             overlayState               = OV_CHUCK_COVER_OPENED;
+            coverInterlockEngaged      = true;
 
             feedInhibit                = 1;
             feedHoldLatched            = true;
@@ -195,8 +244,13 @@ FUNCTION(_)
             spindleInhibit             = 1;
             spindleUninhibitCommanded  = false;
 
+            /* Sampled before our inhibit takes effect: if the spindle was not
+               turning, there is nothing to spin back up when the cover closes. */
+            spindleWasRunningAtCover   = spindleAtSpeed;
+
             last_action_dbg            = 7; /* hold_on, informational */
         } else {
+            coverInterlockEngaged = false;
             /* IDLE + programLoaded + cover open BEFORE start */
             if (state == ST_IDLE && programLoaded) {
                 overlayState = OV_CHUCK_COVER_OPENED;  /* LED_COVER_FAST + CycleStart not allowed */
@@ -207,25 +261,64 @@ FUNCTION(_)
     }
 
     if (chuckCoverFall && (overlayState == OV_CHUCK_COVER_OPENED)) {
-        if (prevStateBeforeCover == ST_RUNNING) {
-            overlayState              = OV_SPINDLE_RESUME_REQ;
-            spindleUninhibitCommanded = false;
+        if (coverInterlockEngaged) {
+            if (spindleWasRunningAtCover) {
+                overlayState              = OV_SPINDLE_RESUME_REQ;
+                spindleUninhibitCommanded = false;
+            } else {
+                /* Nothing to spin up: spindleAtSpeed is gated by spindle-is-on in
+                   HAL, so waiting for it here would never end. Straight to feed. */
+                overlayState              = OV_FEED_RESUME_REQ;
+                spindleInhibit            = 0;
+                spindleUninhibitCommanded = false;
+            }
         } else {
-            /* If we didn’t engage because we weren’t running, nothing to resume */
+            /* If we didn't engage because the program was not active, nothing to resume */
             overlayState              = OV_NONE;
+        }
+        coverInterlockEngaged = false;
+    }
+
+    /* Nothing from the cover may stay engaged while a tool change is pending, not
+       even an overlay armed before the change was requested. */
+    if (toolChangePending && overlayState != OV_NONE) {
+        overlayState              = OV_NONE;
+        coverInterlockEngaged     = false;
+        spindleUninhibitCommanded = false;
+        spindleInhibit            = 0;
+        if (feedHoldLatched) {
+            feedInhibit     = 0;
+            feedHoldLatched = false;
+            last_action_dbg = 8; /* hold_off */
         }
     }
 
     if (!programLoaded) {
         overlayState = OV_NONE;
+        coverInterlockEngaged = false;
         spindleUninhibitCommanded = false;
+
+        /* no stale tool change may survive */
+        toolChangeAckSent = false;
+        toolChanged       = 0;
+        t_toolChanged     = 0.0;
+    }
+
+    /* The GUI may drop programLoaded when the program ends, so the end-of-program
+       latches must NOT be cleared by that. They are cleared when a program is
+       (re)loaded, i.e. on the 0->1 edge of programLoaded. */
+    if (programLoadedRise) {
+        programWasActive        = false;
+        pendingAbortedAfterStop = false;
+        programCompleted        = 0;
     }
 
     /* ===== Overlay bootstrap when cover is already open at load =====
-       Dacă nu am avut „rise” (cover era deja 1) și suntem în IDLE cu program încărcat,
-       forțăm overlay-ul pentru LED_COVER_FAST și blocarea CycleStart. */
-    if (overlayState == OV_NONE && chuckCoverLevel && programLoaded && state == ST_IDLE) {
-        overlayState = OV_CHUCK_COVER_OPENED;   /* fără feed/spindle inhibit */
+       If there was no rise (cover was already 1) and we are IDLE with a program loaded,
+       force the overlay for LED_COVER_FAST and to block CycleStart. */
+    if (overlayState == OV_NONE && chuckCoverLevel && programLoaded && state == ST_IDLE
+        && !toolChangePending) {
+        overlayState = OV_CHUCK_COVER_OPENED;   /* without feed/spindle inhibit */
         prevStateBeforeCover = ST_IDLE;
     }
 
@@ -245,11 +338,12 @@ FUNCTION(_)
     statusChuckCoverOpened      = (overlayState == OV_CHUCK_COVER_OPENED);
     statusSpindleResumeRequired = (overlayState == OV_SPINDLE_RESUME_REQ);
     statusFeedResumeRequired    = (overlayState == OV_FEED_RESUME_REQ);
+    statusToolChangeRequired    = toolChangePending;
 
     overlay_dbg = overlayState;
 
     /* ===== Housekeeping on SB transitions (base behavior) ===== */
-    if (singleBlockRise && (state == ST_RUNNING) && (overlayState == OV_NONE)) {
+    if (singleBlockRise && (state == ST_RUNNING) && (overlayState == OV_NONE) && !toolChangePending) {
         pulse_output_pin(&t_pause, &pauseProgram, outputPulseDuration);
         last_action_dbg = 2;
         if (feedHoldLatched) {
@@ -268,7 +362,7 @@ FUNCTION(_)
         postStartPausePending = false;
     }
 
-    if (postStartPausePending && singleBlockLevel && (state == ST_RUNNING) && (overlayState == OV_NONE)) {
+    if (postStartPausePending && singleBlockLevel && (state == ST_RUNNING) && (overlayState == OV_NONE) && !toolChangePending) {
         pulse_output_pin(&t_pause, &pauseProgram, outputPulseDuration);
         last_action_dbg       = 2;
         postStartPausePending = false;
@@ -276,22 +370,58 @@ FUNCTION(_)
 
     postStartPausePending_dbg = postStartPausePending;
 
-    /* ===== Finished after Stop (base) =====
-       Dacă nu eram IDLE la STOP, pulsează la primul 0->1 pe programIdle.
-       Dacă între timp se apasă CycleStart, anulăm pending-ul. */
-    if (pendingFinishedAfterStop && programIdleRise) {
-        pulse_output_pin(&t_finished, &finishedProgram, outputPulseDuration);
-        last_action_dbg            = 6; /* finished */
-        pendingFinishedAfterStop   = false;
+    /* ===== Program end: completed vs aborted =====
+       programWasActive is a latch, so we don't miss the end if halui goes through a
+       ST_UNKNOWN cycle before IDLE.
+         - e-stop / machine off while the program is active: pulse programAborted at once.
+         - red button: handled in the abort block (immediate if already IDLE, otherwise
+           armed via pendingAbortedAfterStop and pulsed on the first 0->1 of programIdle);
+           if CycleStart is pressed meanwhile, cancel the pending pulse.
+         - normal M2/M30 end: the program was active and reaches IDLE with no abort armed.
+       programCompleted is a LEVEL (for the UI), held until the red button is pressed or
+       the program is started again; only programAborted is a pulse. */
+    if (state == ST_RUNNING || state == ST_PAUSED_NO_SINGLE_BLOCK || state == ST_PAUSED_SINGLE_BLOCK) {
+        programWasActive = true;
+        programCompleted = 0;      /* the program runs again -> leave the completed state */
     }
-    if (pendingFinishedAfterStop && cycleStartEdge) {
-        pendingFinishedAfterStop   = false;
+
+    if (machineOnFall && programLoaded && (programWasActive || !programIdle)) {
+        pulse_output_pin(&t_aborted, &programAborted, outputPulseDuration);
+        last_action_dbg          = 10; /* aborted */
+        pendingAbortedAfterStop  = false;
+        programWasActive         = false;
+        programCompleted         = 0;
+    }
+
+    if (programIdleRise && (pendingAbortedAfterStop || programWasActive)) {
+        if (pendingAbortedAfterStop) {
+            pulse_output_pin(&t_aborted, &programAborted, outputPulseDuration);
+            last_action_dbg      = 10; /* aborted */
+        } else {
+            programCompleted     = 1;  /* latched level, cleared by the red button or a restart */
+            last_action_dbg      = 6;  /* completed */
+        }
+        pendingAbortedAfterStop  = false;
+        programWasActive         = false;
+    }
+    if (pendingAbortedAfterStop && cycleStartEdge) {
+        pendingAbortedAfterStop  = false;
     }
 
     /* ===== GREEN behavior ===== */
     if (cycleStartEdge) {
+        /* Tool change has priority over everything, including the cover overlay:
+           only the button routing is affected, the safety inhibits stay as they are. */
+        if (toolChangePending) {
+            if (!toolChangeAckSent) {
+                pulse_output_pin(&t_toolChanged, &toolChanged, outputPulseDuration);
+                last_action_dbg   = 9;
+                toolChangeAckSent = true;
+            }
+            /* further presses while toolChange is still 1: ignored */
+        }
         /* Overlay has priority */
-        if (overlayState == OV_CHUCK_COVER_OPENED) {
+        else if (overlayState == OV_CHUCK_COVER_OPENED) {
             /* Ignore CYCLestart while cover is open */
         }
         else if (overlayState == OV_SPINDLE_RESUME_REQ) {
@@ -310,6 +440,14 @@ FUNCTION(_)
                     last_action_dbg = 8;
                 }
                 overlayState = OV_NONE;  /* back to base; base should be Running naturally */
+
+                /* If the program was actually paused while the cover was open (a
+                   tool change confirmed in between does that), releasing the feed
+                   is not enough - it has to be resumed as well. */
+                if (state == ST_PAUSED_NO_SINGLE_BLOCK) {
+                    pulse_output_pin(&t_resume, &resumeProgram, outputPulseDuration);
+                    last_action_dbg = 3;
+                }
             } else {
                 /* SB ON: motionType != 0 -> release hold; motionType == 0 -> STEP */
                 if (motionType != 0) {
@@ -337,6 +475,8 @@ FUNCTION(_)
             switch (state) {
 
                 case ST_IDLE: {
+                    /* also the restart from the completed state: runs from the beginning */
+                    programCompleted = 0;
                     pulse_output_pin(&t_start, &startProgram, outputPulseDuration);
                     last_action_dbg = 1;
                     if (singleBlockLevel) {
@@ -383,7 +523,20 @@ FUNCTION(_)
                     }
                 } break;
 
-                case ST_NOT_LOADED:
+                case ST_NOT_LOADED: {
+                    /* The GUI may drop programLoaded at the end of the program, while the
+                       interpreter still has the file open: GREEN restarts it from the
+                       beginning, exactly like in ST_IDLE. */
+                    if (programCompleted) {
+                        programCompleted = 0;
+                        pulse_output_pin(&t_start, &startProgram, outputPulseDuration);
+                        last_action_dbg = 1;
+                        if (singleBlockLevel) {
+                            postStartPausePending = true;
+                        }
+                    }
+                } break;
+
                 case ST_UNKNOWN:
                 default: {
                     /* ignore */
@@ -407,19 +560,31 @@ FUNCTION(_)
 
         /* reset overlay */
         overlayState = OV_NONE;
+        coverInterlockEngaged = false;
         spindleInhibit = 0;
         spindleUninhibitCommanded = false;
 
-        /* arm finished-after-stop */
-        pendingFinishedAfterStop = true;
-        /* dacă suntem DEJA în IDLE, pulsam imediat finished și dezarmăm pending */
+        /* reset tool change: LinuxCNC drops tool-change on abort, we must not
+           confirm a tool that was never changed, and nothing may stay latched
+           for the next program. */
+        toolChangeAckSent = false;
+        toolChanged       = 0;
+        t_toolChanged     = 0.0;
+
+        /* leaving the completed state: drop the level, then pulse aborted */
+        programCompleted = 0;
+
+        /* arm aborted-after-stop */
+        pendingAbortedAfterStop = true;
+        /* if we are ALREADY IDLE, pulse aborted right away and disarm the pending flag */
         if (programIdle) {
-            pulse_output_pin(&t_finished, &finishedProgram, outputPulseDuration);
-            last_action_dbg            = 6; /* finished */
-            pendingFinishedAfterStop   = false;
+            pulse_output_pin(&t_aborted, &programAborted, outputPulseDuration);
+            last_action_dbg            = 10; /* aborted */
+            pendingAbortedAfterStop    = false;
+            programWasActive           = false;
         }
 
-        /* and SB first-step arma off */
+        /* and disarm the SB first-step */
         firstStepAfterEnterSB = false;
     }
 
@@ -455,6 +620,8 @@ FUNCTION(_)
     /* Choose LED mode from overlay first (priority), otherwise base state */
     if (!programLoaded) {
         led_mode = LED_OFF;
+    } else if (toolChangePending) {
+        led_mode = LED_TOOLCHANGE_TRIPLE;       /* 3x 100/100 + 500 off */
     } else if (overlayState == OV_CHUCK_COVER_OPENED) {
         led_mode = LED_COVER_FAST;              /* 100/100 */
     } else if (overlayState == OV_SPINDLE_RESUME_REQ || overlayState == OV_FEED_RESUME_REQ) {
@@ -505,6 +672,15 @@ FUNCTION(_)
             while (t >= 0.2) t -= 0.2;
             cycleStartLedStatus = (t < 0.1) ? 1 : 0;
         } break;
+        case LED_TOOLCHANGE_TRIPLE:
+            /* ON 0.0-0.1, 0.2-0.3, 0.4-0.5 ; OFF 0.5-1.0 */
+            if ((led_timer < 0.1) ||
+                (led_timer >= 0.2 && led_timer < 0.3) ||
+                (led_timer >= 0.4 && led_timer < 0.5))
+                cycleStartLedStatus = 1;
+            else
+                cycleStartLedStatus = 0;
+            break;
         default:
             cycleStartLedStatus = 0;
             break;
@@ -516,7 +692,8 @@ FUNCTION(_)
     if (t_resume > 0.0) { t_resume -= dt; if (t_resume <= 0.0) { t_resume = 0.0; resumeProgram = 0; } }
     if (t_step   > 0.0) { t_step   -= dt; if (t_step   <= 0.0) { t_step   = 0.0; stepProgram   = 0; } }
     if (t_stop   > 0.0) { t_stop   -= dt; if (t_stop   <= 0.0) { t_stop   = 0.0; stopProgram   = 0; } }
-    if (t_finished > 0.0) { t_finished -= dt; if (t_finished <= 0.0) { t_finished = 0.0; finishedProgram = 0; } }
+    if (t_aborted  > 0.0) { t_aborted  -= dt; if (t_aborted  <= 0.0) { t_aborted  = 0.0; programAborted = 0; } }
+    if (t_toolChanged > 0.0) { t_toolChanged -= dt; if (t_toolChanged <= 0.0) { t_toolChanged = 0.0; toolChanged = 0; } }
 
     /* ===== Latch inputs & base state ===== */
     prevProgramIdleLevel = programIdleLevel;
@@ -524,5 +701,10 @@ FUNCTION(_)
     prevCycleAbortLevel  = cycleAbortLevel;
     prevSingleBlockLevel = singleBlockLevel;
     prevChuckCoverLevel  = chuckCoverLevel;
+    prevToolChangeLevel  = toolChangeLevel;
+    prevMachineOnLevel   = machineOnLevel;
+    prevProgramLoadedLevel = programLoadedLevel;
     prevState            = state;
+
+    toolChangeAckSent_dbg = toolChangeAckSent;
 }
