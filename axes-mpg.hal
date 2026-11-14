@@ -9,7 +9,7 @@ loadrt encoder          names=mpg.encoder-x,mpg.encoder-z
 loadrt ilowpass         names=mpg.lowpass-x,mpg.lowpass-z
 loadrt mux4             names=mux.increment
 loadrt anglejog         names=anglejog-x,anglejog-z
-loadrt scaled_s32_sums  names=sincounts,coscounts
+loadrt scaled_sint_sums names=sincounts,coscounts
 loadrt mux2s32          names=x-counts,z-counts
 
 addf x-counts   servo-thread
