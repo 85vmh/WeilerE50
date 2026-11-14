@@ -24,6 +24,10 @@ addf hm2_7i97.0.write         servo-thread
 
 setp hm2_7i97.0.pwmgen.pwm_frequency    48000
 setp hm2_7i97.0.watchdog.timeout_ns     5000000
+# latch the encoders on the DPLL timer (like E30), not when hm2 read runs:
+# hm2 read jitter (~0.2 ms over ethernet) gave 0.02 mm error spikes at 100 mm/s
+setp hm2_7i97.0.dpll.01.timer-us        -50
+setp hm2_7i97.0.encoder.timer-number    1
 
 #*******************
 #  AXIS X JOINT 0
