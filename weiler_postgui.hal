@@ -87,8 +87,8 @@ net tool:change     <=  iocontrol.0.tool-change
 net tool:change     =>  program-state.0.toolChange
 net tool:change     =>  TeachInLathe.tool-change.change
 
-net tool.changed    <=  program-state.0.toolChanged
-net tool.changed    =>  iocontrol.0.tool-changed
+net tool:changed    <=  program-state.0.toolChanged
+net tool:changed    =>  iocontrol.0.tool-changed
 net tool:changed    =>  TeachInLathe.tool-change.changed
 
 net tool:number     iocontrol.0.tool-prep-number    =>  TeachInLathe.tool-change.number
