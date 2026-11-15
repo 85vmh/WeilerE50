@@ -51,6 +51,12 @@ setp axis.z.jog-vel-mode 1
 setp joint.0.jog-vel-mode 1
 setp joint.1.jog-vel-mode 1
 
+# jog/MPG acceleration = fraction of MAX_ACCELERATION, value set in the INI
+setp axis.x.jog-accel-fraction  [AXIS_X]JOG_ACCEL_FRACTION
+setp axis.z.jog-accel-fraction  [AXIS_Z]JOG_ACCEL_FRACTION
+setp joint.0.jog-accel-fraction [AXIS_X]JOG_ACCEL_FRACTION
+setp joint.1.jog-accel-fraction [AXIS_Z]JOG_ACCEL_FRACTION
+
 # enable jog when not yet homed
 setp joint.0.jog-enable 1 
 setp joint.1.jog-enable 1
